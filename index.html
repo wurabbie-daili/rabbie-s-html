@@ -2,199 +2,84 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>优化节点</title>
-
+<title>用户登录</title>
 <style>
-body{
-  margin:0;
-  background: rgba(0,0,0,0.6);
-  font-family: Arial;
-}
-
-/* 遮罩 */
-.overlay{
-  position:fixed;
-  top:0;left:0;
-  width:100%;height:100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-
-/* 弹窗 */
-.modal{
-  width:420px;
+body {
   background:#0f172a;
-  border-radius:12px;
-  padding:20px;
-  box-shadow:0 0 30px rgba(0,0,0,0.6);
   color:#e5e7eb;
+  font-family: Arial;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
 }
-
-/* 标题 */
-.title{
-  font-size:18px;
-  margin-bottom:15px;
-  color:#38bdf8;
-  text-align:center;
+.box {
+  background:#1e293b;
+  padding:30px;
+  border-radius:12px;
+  width:300px;
 }
-
-/* 按钮 */
-.btn{
-  display:inline-block;
-  padding:8px 14px;
-  margin-right:10px;
-  background:#38bdf8;
-  color:#0f172a;
-  border-radius:6px;
-  cursor:pointer;
-  font-size:13px;
+input {
+  width:100%;
+  margin:8px 0;
+  padding:8px;
 }
-.btn:hover{background:#0ea5e9}
-
-/* 进度 */
-.progress{
-  margin-top:10px;
-  font-size:13px;
-  color:#22c55e;
-}
-
-/* 列表 */
-.list{
-  margin-top:10px;
-  max-height:200px;
-  overflow:auto;
-  font-size:13px;
-  background:#020617;
+button {
+  width:100%;
   padding:10px;
-  border-radius:6px;
+  margin-top:10px;
+}
+#result {
+  margin-top:15px;
+  font-size:13px;
+  word-break:break-all;
 }
 </style>
 </head>
 
 <body>
 
-<div class="overlay">
-  <div class="modal">
+<div class="box">
+  <h3>🔐 用户登录</h3>
 
-    <div class="title">⚡ 节点优选工具</div>
+  <input id="user" placeholder="用户名">
+  <input id="pass" type="password" placeholder="密码">
 
-    <div>
-      <span class="btn" onclick="start()">开始</span>
-      <span class="btn" onclick="writeSub()">写入</span>
-    </div>
+  <button onclick="login()">登录</button>
 
-    <div class="progress" id="progress">等待开始...</div>
-
-    <div class="list" id="list"></div>
-
-  </div>
+  <div id="result"></div>
 </div>
 
 <script>
+async function login() {
+  const username = document.getElementById("user").value;
+  const password = document.getElementById("pass").value;
 
-// ===== CF IP段 =====
-const CIDR_LIST = [
-"173.245.48.0/20","103.21.244.0/22","103.22.200.0/22",
-"103.31.4.0/22","141.101.64.0/18","108.162.192.0/18",
-"190.93.240.0/20","188.114.96.0/20","197.234.240.0/22",
-"198.41.128.0/17","162.158.0.0/15","104.16.0.0/13",
-"104.24.0.0/14","172.64.0.0/13","131.0.72.0/22"
-];
+  const res = await fetch("https://你的认证worker/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password })
+  });
 
-// ===== 工具函数 =====
-function ipToInt(ip){
-  return ip.split('.').reduce((a,b)=> (a<<8)+ +b,0);
-}
-function intToIP(int){
-  return [24,16,8,0].map(i=>(int>>i)&255).join('.');
-}
-function randomIP(cidr){
-  const [base,mask]=cidr.split("/");
-  const baseInt=ipToInt(base);
-  const hostBits=32-mask;
-  return intToIP(baseInt + Math.floor(Math.random()*(2**hostBits)));
-}
+  const data = await res.json();
 
-// ===== 生成IP =====
-function genIPs(n=200){
-  return Array.from({length:n},()=>randomIP(
-    CIDR_LIST[Math.floor(Math.random()*CIDR_LIST.length)]
-  ));
-}
-
-// ===== 测速 =====
-async function test(ip){
-  const url=`https://${ip}.sslip.io/cdn-cgi/trace?_t=${Date.now()}`;
-  const t=performance.now();
-  try{
-    await fetch(url,{mode:"no-cors"});
-    return {ip,delay:performance.now()-t};
-  }catch{
-    return {ip,delay:9999};
-  }
-}
-
-// ===== 并发 =====
-async function runTest(ips){
-  const res=[];
-  let done=0;
-
-  async function worker(){
-    while(ips.length){
-      const ip=ips.pop();
-      const r=await test(ip);
-      res.push(r);
-      done++;
-      updateProgress(done);
-    }
-  }
-
-  await Promise.all(Array.from({length:8},worker));
-  return res;
-}
-
-// ===== UI =====
-function updateProgress(n){
-  document.getElementById("progress").innerText =
-    "测速中... "+n+"/200";
-}
-
-// ===== 主流程 =====
-let best=[];
-
-async function start(){
-  const listEl=document.getElementById("list");
-  listEl.innerHTML="";
-  document.getElementById("progress").innerText="生成IP中...";
-
-  const ips=genIPs(200);
-
-  document.getElementById("progress").innerText="测速开始...";
-
-  const res=await runTest(ips);
-
-  best=res.sort((a,b)=>a.delay-b.delay).slice(0,5);
-
-  listEl.innerHTML = best.map(x =>
-    `✅ ${x.ip} - ${x.delay.toFixed(0)} ms`
-  ).join("<br>");
-
-  document.getElementById("progress").innerText="完成";
-}
-
-// ===== 写入订阅 =====
-function writeSub(){
-  if(!best.length){
-    alert("请先优选");
+  if (!data.ok) {
+    document.getElementById("result").innerHTML = "❌ " + data.msg;
     return;
   }
 
-  const ips = best.map(x=>x.ip).join(",");
-
-  location.href = "https://ceshiyidong.wbxzztla.workers.dev/sub?ips=" + ips;
+  document.getElementById("result").innerHTML = `
+    ✅ 登录成功<br><br>
+    <div id="sub">${data.sub}</div>
+    <button onclick="copy()">复制订阅</button>
+  `;
 }
 
+function copy() {
+  const text = document.getElementById("sub").innerText;
+  navigator.clipboard.writeText(text);
+  alert("已复制");
+}
 </script>
 
 </body>
