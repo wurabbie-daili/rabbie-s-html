@@ -1,46 +1,55 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh">
 <head>
 <meta charset="UTF-8">
 <title>用户登录</title>
+
 <style>
 body {
-  background:#0f172a;
-  color:#e5e7eb;
+  background: #0f172a;
+  color: #e5e7eb;
   font-family: Arial;
   display:flex;
   justify-content:center;
   align-items:center;
   height:100vh;
 }
+
 .box {
   background:#1e293b;
   padding:30px;
-  border-radius:12px;
+  border-radius:10px;
   width:300px;
 }
+
 input {
   width:100%;
+  padding:10px;
   margin:8px 0;
-  padding:8px;
+  border:none;
+  border-radius:5px;
 }
+
 button {
   width:100%;
   padding:10px;
-  margin-top:10px;
+  background:#38bdf8;
+  border:none;
+  cursor:pointer;
 }
+
 #result {
   margin-top:15px;
   font-size:13px;
   word-break:break-all;
 }
 </style>
-</head>
 
+</head>
 <body>
 
 <div class="box">
-  <h3>🔐 用户登录</h3>
+  <h3>登录获取订阅</h3>
 
   <input id="user" placeholder="用户名">
   <input id="pass" type="password" placeholder="密码">
@@ -55,28 +64,30 @@ async function login() {
   const username = document.getElementById("user").value;
   const password = document.getElementById("pass").value;
 
-  const res = await fetch("https://yonghu-denglu-xitong.wbxzztla.workers.dev/api/login", {
+  const res = await fetch("https://login.shareme.eu.cc/api/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json"
+    },
     body: JSON.stringify({ username, password })
   });
 
   const data = await res.json();
 
-  if (!data.ok) {
-    document.getElementById("result").innerHTML = "❌ " + data.msg;
-    return;
+  if (data.success) {
+    document.getElementById("result").innerHTML = `
+      ✅ 登录成功<br><br>
+      <div id="link">${data.token}</div>
+      <br>
+      <button onclick="copy()">复制订阅</button>
+    `;
+  } else {
+    document.getElementById("result").innerText = "❌ 登录失败";
   }
-
-  document.getElementById("result").innerHTML = `
-    ✅ 登录成功<br><br>
-    <div id="sub">${data.sub}</div>
-    <button onclick="copy()">复制订阅</button>
-  `;
 }
 
 function copy() {
-  const text = document.getElementById("sub").innerText;
+  const text = document.getElementById("link").innerText;
   navigator.clipboard.writeText(text);
   alert("已复制");
 }
